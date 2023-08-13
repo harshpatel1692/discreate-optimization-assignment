@@ -2,9 +2,30 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple
+import heapq
+from heapq import heappop, heappush
+from tqdm import tqdm
 import statistics
 
 Item = namedtuple("Item", ['index', 'value', 'weight', 'value_per_weight'])
+Node = namedtuple("Node", ['direction', 'index', 'branch', 'value', 'weight', 'estimate'])
+
+
+def get_children(node_value, capacity, node_estimate, items, branch):
+
+    if branch > len(items):
+        return None, None
+
+    item = items[branch-1]
+
+    if capacity-item.weight >= 0 :
+        left_node = Node('left', item.index, branch, node_value+item.value, capacity-item.weight, node_estimate)
+        right_node = Node('right', item.index, branch, node_value, capacity, node_estimate-item.value)
+    else:
+        left_node = Node('left', item.index, branch, -1, capacity-item.weight, -1)
+        right_node = Node('right', item.index, branch, node_value, capacity, node_estimate-item.value)
+
+    return left_node, right_node, branch
 
 
 def logic(items, capacity):
@@ -19,85 +40,65 @@ def logic(items, capacity):
     :param capacity: Max value that a knapsack can fit
     :return: Total value of the knapsack;
     """
+
     value = 0
     taken_idx = []
     total_items = len(items)
+    total_value = sum([item.value for item in items])
 
-    # We want at least 1 of the top 1% precious items in the knapsack
-    max_threshold = int(total_items*0.20) if total_items >= 1000 else total_items
+    # sort by value by weight in descending order
+    items = sorted(items, key=lambda x: x.value, reverse=True)
 
-    # sort the values by Value in descending order
-    sorted_values = sorted(items, key=lambda x: x.value, reverse=True)[:max_threshold]
+    unexplored_nodes = []
+    max_value = 0
 
-    # For remainder items, we only want items that has value per weight more than 0.5
-    threshold_v_w = statistics.quantiles([item.value_per_weight for item in items], n=10)
+    # First Branch
+    left_node, right_node, current_branch = get_children(0, capacity, total_value, items, 1)
+    unexplored_nodes.append(left_node)
+    unexplored_nodes.append(right_node)
+    unexplored_nodes = sorted(unexplored_nodes, key=lambda x: x.estimate)
 
-    items_v_w = []
+    counter = 0
 
-    for idx, value in enumerate(threshold_v_w):
-        if idx == 0:
-            temp_list = [item for item in items if 0 < item.value_per_weight <= value]
-            # temp_threshold = statistics.mean([item.value_per_weight for item in temp_list])
-            # items_v_w += [item for item in items if item.value_per_weight >= temp_threshold]
-            temp_list = sorted(temp_list, key=lambda x: x.value_per_weight, reverse=True)
-            items_v_w = temp_list[:int(len(temp_list)*0.5)]
+    while True:
 
-        elif idx == len(threshold_v_w)-1:
-            temp_list = [item for item in items if item.value_per_weight > value]
-            # temp_threshold = statistics.mean([item.value_per_weight for item in temp_list])
-            # items_v_w += [item for item in items if item.value_per_weight >= temp_threshold]
-            temp_list = sorted(temp_list, key=lambda x: x.value_per_weight, reverse=True)
-            items_v_w = temp_list[:int(len(temp_list)*0.5)]
+        explore_node = unexplored_nodes.pop()
+
+        left_node, right_node, current_branch = get_children(explore_node.value, explore_node.weight, explore_node.estimate, items, explore_node.branch+1)
+
+        if current_branch != total_items:
+
+            if left_node.estimate > max_value:
+                unexplored_nodes.append(left_node)
+
+            if right_node.estimate > max_value:
+                unexplored_nodes.append(right_node)
         else:
-            temp_list = [item for item in items if value < item.value_per_weight <= threshold_v_w[idx+1]]
-            # temp_threshold = statistics.mean([item.value_per_weight for item in temp_list])
-            # items_v_w += [item for item in items if item.value_per_weight >= temp_threshold]
-            temp_list = sorted(temp_list, key=lambda x: x.value_per_weight, reverse=True)
-            items_v_w = temp_list[:int(len(temp_list)*0.5)]
+            if left_node.estimate > right_node.estimate and left_node.estimate > max_value:
+                max_value = left_node.estimate
 
-    # Sort the values by weight in descending order
-    if total_items > 1000:
-        sorted_v_w = sorted(items_v_w, key=lambda x: x.value_per_weight, reverse=True)
-    else:
-        sorted_v_w = sorted(items, key=lambda x: x.value_per_weight, reverse=True)
+            elif right_node.estimate > left_node.estimate and right_node.estimate > max_value:
+                max_value = right_node.estimate
 
-    for first_item in sorted_values:
+        filtered_nodes = [node for node in unexplored_nodes if node.estimate > max_value]
 
-        for idx in range(len(sorted_v_w)):
+        unexplored_nodes = sorted(filtered_nodes, key=lambda x: x.estimate)
 
-            # Empty knapsack
-            temp_idx = []
+        if not unexplored_nodes:
+            break
+        else:
+            counter += 1
 
-            # Load first item in the knapsack
-            temp_value = first_item.value
-            temp_weight = first_item.weight
-            temp_idx.append(first_item.index)
+    print(counter, max_value)
+    # return max_value
 
-            for next_item in sorted_v_w[idx:]:
-
-                # Ignore the item that is already picked
-                if first_item.index == next_item.index:
-                    continue
-
-                # If current weight + next weight exceeds capacity then ignore and try another
-                if temp_weight + next_item.weight > capacity:
-                    continue
-
-                temp_value += next_item.value
-                temp_weight += next_item.weight
-                temp_idx.append(next_item.index)
-
-            # If current solution is more valuable than previous solutions; then use the current mix of items.
-            if temp_value > value and temp_weight <= capacity:
-                value = temp_value
-                taken_idx = temp_idx
-
-    # Flag the items that were taken to yield max value
-    taken = [0]*total_items
-    for idx in taken_idx:
-        taken[idx] = 1
-
-    return value, taken
+    # # Flag the items that were taken to yield max value
+    # taken = [0]*total_items
+    # for idx in taken_idx:
+    #     taken[idx] = 1
+    #
+    # print(sum(taken))
+    # return value, taken
 
 
 def solve_it(input_data):
@@ -118,12 +119,14 @@ def solve_it(input_data):
         items.append(Item(i-1, int(parts[0]), int(parts[1]), int(parts[0])/int(parts[1])))
 
     # Fill knapsack
-    value, taken = logic(items, capacity)
+    logic(items, capacity)
 
-    # prepare the solution in the specified output format
-    output_data = str(value) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, taken))
-    return output_data
+    # value, taken = logic(items, capacity)
+
+    # # prepare the solution in the specified output format
+    # output_data = str(value) + ' ' + str(0) + '\n'
+    # output_data += ' '.join(map(str, taken))
+    # return output_data
 
 
 if __name__ == '__main__':
