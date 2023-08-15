@@ -14,7 +14,7 @@ Node = namedtuple("Node", ['direction', 'index', 'branch', 'value', 'weight', 'e
 def get_children(node_value, capacity, node_estimate, items, branch):
 
     if branch > len(items):
-        return None, None
+        return None, None, branch
 
     item = items[branch-1]
 
@@ -44,50 +44,60 @@ def logic(items, capacity):
     value = 0
     taken_idx = []
     total_items = len(items)
-    total_value = sum([item.value for item in items])
+
+    total_value = 0
+    total_weight = capacity
+    for item in sorted(items, key=lambda x: x.value_per_weight, reverse=True):
+        if total_weight-item.weight > 0:
+            total_value += item.value
+            total_weight -= item.weight
+        else:
+            total_value += total_weight * item.value_per_weight
+            break
+
+    print(total_value)
 
     # sort by value by weight in descending order
-    items = sorted(items, key=lambda x: x.value, reverse=True)
+    items = sorted(items, key=lambda x: x.weight, reverse=False)
+    min_capacity = min([item.weight for item in items])
 
     unexplored_nodes = []
     max_value = 0
 
     # First Branch
     left_node, right_node, current_branch = get_children(0, capacity, total_value, items, 1)
-    unexplored_nodes.append(left_node)
     unexplored_nodes.append(right_node)
-    unexplored_nodes = sorted(unexplored_nodes, key=lambda x: x.estimate)
+    unexplored_nodes.append(left_node)
 
     counter = 0
+    items_picked = 0
 
     while True:
-
-        explore_node = unexplored_nodes.pop()
-
-        left_node, right_node, current_branch = get_children(explore_node.value, explore_node.weight, explore_node.estimate, items, explore_node.branch+1)
-
-        if current_branch != total_items:
-
-            if left_node.estimate > max_value:
-                unexplored_nodes.append(left_node)
-
-            if right_node.estimate > max_value:
-                unexplored_nodes.append(right_node)
-        else:
-            if left_node.estimate > right_node.estimate and left_node.estimate > max_value:
-                max_value = left_node.estimate
-
-            elif right_node.estimate > left_node.estimate and right_node.estimate > max_value:
-                max_value = right_node.estimate
-
-        filtered_nodes = [node for node in unexplored_nodes if node.estimate > max_value]
-
-        unexplored_nodes = sorted(filtered_nodes, key=lambda x: x.estimate)
+        counter += 1
 
         if not unexplored_nodes:
             break
+
+        explore_node = unexplored_nodes.pop()
+
+        if explore_node.branch+1 > total_items:
+            max_value = explore_node.value if explore_node.value > max_value else max_value
+            explore_node = unexplored_nodes.pop()
+
+        if explore_node.estimate < max_value:
+            continue
+
+        left_node, right_node, current_branch = get_children(explore_node.value, explore_node.weight, explore_node.estimate, items, explore_node.branch+1)
+
+        if left_node.weight >= min_capacity:
+            unexplored_nodes.append(left_node)
         else:
-            counter += 1
+            max_value = left_node.value if left_node.value > max_value else max_value
+
+        if right_node.weight >= min_capacity:
+            unexplored_nodes.append(right_node)
+        else:
+            max_value = right_node.value if right_node.value > max_value else max_value
 
     print(counter, max_value)
     # return max_value
