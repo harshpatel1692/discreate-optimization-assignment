@@ -1,5 +1,43 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from tqdm import tqdm
+import sys
+
+
+def logic(edges, node_count):
+
+    mapping = dict()
+    coloring = dict()
+    colors_available = dict()
+
+    for idx in range(node_count):
+        coloring[idx] = 0
+
+    for idx in range(node_count):
+        colors_available[idx] = list(range(node_count))
+
+    for idx in range(node_count):
+        mapping[idx] = []
+
+    for i, j in edges:
+        mapping[i].append(j)
+        mapping[j].append(i)
+
+    mapping = dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True))
+
+    for start_node in tqdm(mapping):
+
+        colors_available[start_node] = colors_available[start_node][0]
+
+        for j in mapping[start_node]:
+
+            if colors_available[j][0] == colors_available[start_node]:
+                colors_available[j].remove(colors_available[start_node])
+
+            if start_node in mapping[j]:
+                mapping[j].remove(start_node)
+
+    return colors_available
 
 
 def solve_it(input_data):
@@ -20,16 +58,15 @@ def solve_it(input_data):
 
     # build a trivial solution
     # every node has its own color
-    solution = range(0, node_count)
+    solution = logic(edges, node_count)
 
     # prepare the solution in the specified output format
-    output_data = str(node_count) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution))
+    output_data = str(len(set(solution.values()))) + ' ' + str(0) + '\n'
+    output_data += ' '.join(map(str, solution.values()))
 
     return output_data
 
 
-import sys
 
 if __name__ == '__main__':
     import sys
