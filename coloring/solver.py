@@ -31,7 +31,7 @@ def logic(edges, node_count):
 
         for j in mapping[start_node]:
 
-            if colors_available[j][0] == colors_available[start_node]:
+            if colors_available[start_node] in colors_available[j]:
                 colors_available[j].remove(colors_available[start_node])
 
             if start_node in mapping[j]:
