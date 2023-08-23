@@ -7,14 +7,8 @@ import sys
 def logic(edges, node_count):
 
     mapping = dict()
-    coloring = dict()
-    colors_available = dict()
-
-    for idx in range(node_count):
-        coloring[idx] = 0
-
-    for idx in range(node_count):
-        colors_available[idx] = list(range(node_count))
+    best_min_colors = node_count
+    optimal_colors = []
 
     for idx in range(node_count):
         mapping[idx] = []
@@ -23,21 +17,53 @@ def logic(edges, node_count):
         mapping[i].append(j)
         mapping[j].append(i)
 
-    mapping = dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True))
+    priority_of_nodes =  list(dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True)).keys())[:10]
 
-    for start_node in tqdm(mapping):
+    for start_node in tqdm(priority_of_nodes):
 
-        colors_available[start_node] = colors_available[start_node][0]
+        mapping = dict()
+        coloring = dict()
 
-        for j in mapping[start_node]:
+        for idx in range(node_count):
+            coloring[idx] = list(range(node_count))
 
-            if colors_available[start_node] in colors_available[j]:
-                colors_available[j].remove(colors_available[start_node])
+        for idx in range(node_count):
+            mapping[idx] = []
 
-            if start_node in mapping[j]:
-                mapping[j].remove(start_node)
+        for i, j in edges:
+            mapping[i].append(j)
+            mapping[j].append(i)
 
-    return colors_available
+        mapping = dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True))
+
+        while len(mapping) > 0:
+
+            coloring[start_node] = coloring[start_node][0]
+            connected_nodes = mapping.pop(start_node)
+
+            for j in connected_nodes:
+
+                if coloring[start_node] in coloring[j]:
+                    coloring[j].remove(coloring[start_node])
+
+                if start_node in mapping[j]:
+                    mapping[j].remove(start_node)
+
+            if mapping:
+                mapping = dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True))
+                start_node = list(mapping.keys())[0]
+
+        validation_counter = 0
+        for i, j in edges:
+            status = False if coloring[i] != coloring[j] else True
+            if status:
+                validation_counter += 1
+
+        if validation_counter == 0 and len(set(coloring.values())) < best_min_colors:
+            best_min_colors = len(set(coloring.values()))
+            optimal_colors = coloring
+
+    return optimal_colors
 
 
 def solve_it(input_data):
@@ -65,7 +91,6 @@ def solve_it(input_data):
     output_data += ' '.join(map(str, solution.values()))
 
     return output_data
-
 
 
 if __name__ == '__main__':
