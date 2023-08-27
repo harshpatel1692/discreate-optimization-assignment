@@ -17,7 +17,7 @@ def logic(edges, node_count):
         mapping[i].append(j)
         mapping[j].append(i)
 
-    priority_of_nodes =  list(dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True)).keys())[:10]
+    priority_of_nodes = list(dict(sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True)).keys())[:10]
 
     for start_node in tqdm(priority_of_nodes):
 
