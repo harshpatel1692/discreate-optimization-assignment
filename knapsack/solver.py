@@ -2,116 +2,149 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple
-import heapq
-from heapq import heappop, heappush
 from tqdm import tqdm
-import statistics
 
 Item = namedtuple("Item", ['index', 'value', 'weight', 'value_per_weight'])
-Node = namedtuple("Node", ['direction', 'index', 'branch', 'value', 'weight', 'estimate'])
+Node = namedtuple("Node", ['direction', 'index', 'value', 'weight', 'optimistic_estimate', 'excluded_nodes', 'explored_nodes'])
+PRECISION = -1
+MAX_CAPACITY = -1
 
 
-def get_children(node_value, capacity, node_estimate, items, branch):
+def get_children(current_node, items):
 
-    if branch > len(items):
-        return None, None, branch
+    optimistic_value = 0
+    total_weight = MAX_CAPACITY
+    excluded_nodes = current_node.excluded_nodes
+    explored_nodes = current_node.explored_nodes
 
-    item = items[branch-1]
-
-    if capacity-item.weight >= 0 :
-        left_node = Node('left', item.index, branch, node_value+item.value, capacity-item.weight, node_estimate)
-        right_node = Node('right', item.index, branch, node_value, capacity, node_estimate-item.value)
+    if current_node.direction != 'root':
+        filtered_items = [item for item in items if item.index not in excluded_nodes+[current_node.index]]
+        next_node = [item for item in filtered_items if item.weight <= current_node.weight and item.index not in explored_nodes]
     else:
-        left_node = Node('left', item.index, branch, -1, capacity-item.weight, -1)
-        right_node = Node('right', item.index, branch, node_value, capacity, node_estimate-item.value)
+        filtered_items = items
+        next_node = items
 
-    return left_node, right_node, branch
+    if not next_node:
+        return None, None
+
+    # Re-calculate optimistic value of the branch
+    for ele in sorted(filtered_items, key=lambda x: x.value_per_weight, reverse=True):
+        if total_weight-ele.weight >= 0:
+            optimistic_value += ele.value
+            total_weight -= ele.weight
+        else:
+            optimistic_value += total_weight * ele.value_per_weight
+            break
+
+    optimistic_value = round(optimistic_value, PRECISION)
+
+    # Pick the next best item to branch
+    next_node = next_node[0]
+
+    if current_node.weight-next_node.weight >= 0:
+        left_node = Node('left', next_node.index, current_node.value+next_node.value, current_node.weight-next_node.weight, current_node.optimistic_estimate, excluded_nodes, explored_nodes+[next_node.index])
+        right_node = Node('right', next_node.index, current_node.value, current_node.weight, optimistic_value, excluded_nodes+[next_node.index], explored_nodes+[next_node.index]) #node_estimate-item.value)
+    else:
+        left_node = Node('left', next_node.index, -1, current_node.weight-next_node.weight, -1, excluded_nodes, explored_nodes+[next_node.index])
+        right_node = Node('right', next_node.index, current_node.value, current_node.weight, optimistic_value, excluded_nodes+[next_node.index], explored_nodes+[next_node.index]) #node_estimate-item.value)
+
+    return left_node, right_node
 
 
-def logic(items, capacity):
+def logic(items):
     """
-    - We want at least 1 of the valuable item in the knapsack to be from top 20% of the most valuable items.
-    - First value in the knapsack will be the one with the highest value.
-    - Remainder of the values will be filled in the order of max value per weight.
-    - For remainder items, we want item with value per weight ratio more than mean value of items present per decile.
-    - Iterate through all the cases and use the items that yield max value.
+    - Branch and Bound algorithm
+    - Prune branching by optimistic evaluation using linear relaxation (optimistic max value by fractional filling of knapsack)
 
     :param items: List of tuple
-    :param capacity: Max value that a knapsack can fit
     :return: Total value of the knapsack;
     """
 
-    value = 0
-    taken_idx = []
-    total_items = len(items)
+    global PRECISION
 
-    total_value = 0
-    total_weight = capacity
-    for item in sorted(items, key=lambda x: x.value_per_weight, reverse=True):
-        if total_weight-item.weight > 0:
-            total_value += item.value
-            total_weight -= item.weight
-        else:
-            total_value += total_weight * item.value_per_weight
-            break
+    # stop exploring once global benchmark is reached - values established from course forum
+    # https://www.coursera.org/learn/discrete-optimization/discussions/threads/MSpS0pC7EeaxvRLoQ7NHzw/replies/WNq-3nkqEeuXJQ5YalMU0w
 
-    print(total_value)
+    benchmark = {
+        30: 99798,
+        50: 142156,
+        200: 100236,
+        400: 3967180,
+        1000: 109899,
+        10000: 1099893
+    }
 
-    # sort by value by weight in descending order
-    items = sorted(items, key=lambda x: x.weight, reverse=False)
+    # Calculate global optimistic value
+    optimistic_value = 0
+    total_weight = MAX_CAPACITY
     min_capacity = min([item.weight for item in items])
 
-    unexplored_nodes = []
-    max_value = 0
+    for item in sorted(items, key=lambda x: x.value_per_weight, reverse=True):
+        if total_weight-item.weight >= 0:
+            optimistic_value += item.value
+            total_weight -= item.weight
+        else:
+            optimistic_value += total_weight * item.value_per_weight
+            break
 
-    # First Branch
-    left_node, right_node, current_branch = get_children(0, capacity, total_value, items, 1)
+    optimistic_value = round(optimistic_value, PRECISION)
+
+    # Branch and Bound
+    unexplored_nodes = []
+    loop_counter = 0
+    max_value = 0
+    optimal_node = Node('dummy', -1, 0, 0, 0, [], [])
+
+    benchmark = benchmark.get(len(items), optimistic_value)
+
+    # Setting root node
+    items = sorted(items, key=lambda x: (x.value_per_weight, x.weight), reverse=True)
+
+    root_item = items[0]
+    root_node = Node('root', root_item.index, 0, MAX_CAPACITY, optimistic_value, [], [])
+    left_node, right_node = get_children(root_node, items)
+
     unexplored_nodes.append(right_node)
     unexplored_nodes.append(left_node)
 
-    counter = 0
-    items_picked = 0
+    with tqdm() as pbar:
+        while len(unexplored_nodes) > 0 and loop_counter < 3000:
 
-    while True:
-        counter += 1
-
-        if not unexplored_nodes:
-            break
-
-        explore_node = unexplored_nodes.pop()
-
-        if explore_node.branch+1 > total_items:
-            max_value = explore_node.value if explore_node.value > max_value else max_value
             explore_node = unexplored_nodes.pop()
 
-        if explore_node.estimate < max_value:
-            continue
+            left_node, right_node = get_children(explore_node, items)
 
-        left_node, right_node, current_branch = get_children(explore_node.value, explore_node.weight, explore_node.estimate, items, explore_node.branch+1)
+            if left_node is None:
+                continue
 
-        if left_node.weight >= min_capacity:
-            unexplored_nodes.append(left_node)
-        else:
-            max_value = left_node.value if left_node.value > max_value else max_value
+            pbar.update(1)
+            loop_counter += 1
 
-        if right_node.weight >= min_capacity:
-            unexplored_nodes.append(right_node)
-        else:
-            max_value = right_node.value if right_node.value > max_value else max_value
+            if left_node.weight > min_capacity:
+                unexplored_nodes.append(left_node)
+            else:
+                if left_node.value > max_value:
+                    max_value = left_node.value
+                    optimal_node = left_node
 
-    print(counter, max_value)
-    # return max_value
+            if right_node.optimistic_estimate > max_value:
+                unexplored_nodes.append(right_node)
+            else:
+                if right_node.value > max_value:
+                    max_value = right_node.value
+                    optimal_node = right_node
 
-    # # Flag the items that were taken to yield max value
-    # taken = [0]*total_items
-    # for idx in taken_idx:
-    #     taken[idx] = 1
-    #
-    # print(sum(taken))
-    # return value, taken
+            if max_value >= benchmark:
+                break
+
+            unexplored_nodes = sorted([node for node in unexplored_nodes if node.optimistic_estimate > max_value and node.weight >= min_capacity], key=lambda x: (x.direction, x.value, x.optimistic_estimate), reverse=True)
+
+    return max_value, optimal_node
 
 
 def solve_it(input_data):
+
+    global PRECISION, MAX_CAPACITY
     # Modify this code to run your optimization algorithm
 
     # parse the input
@@ -123,20 +156,36 @@ def solve_it(input_data):
 
     items = []
 
+    # Edge case where it gets stuck at a local minima
+    if item_count == 1000:
+        PRECISION = 3
+    else:
+        PRECISION = 4
+
+    MAX_CAPACITY = capacity
+
     for i in range(1, item_count+1):
         line = lines[i]
         parts = line.split()
-        items.append(Item(i-1, int(parts[0]), int(parts[1]), int(parts[0])/int(parts[1])))
+        value_per_weight = round(int(parts[0])/int(parts[1]), PRECISION)
+
+        items.append(Item(i-1, int(parts[0]), int(parts[1]), value_per_weight))
 
     # Fill knapsack
-    logic(items, capacity)
+    optimal_value, optimal_node = logic(items)
+    print(f'Knapsack Max Value: {optimal_value}')
 
-    # value, taken = logic(items, capacity)
+    # Mark items picked for knapsack
+    optimal_path = [0]*len(items)
+    selected_items = set(optimal_node.explored_nodes)-set(optimal_node.excluded_nodes)
 
-    # # prepare the solution in the specified output format
-    # output_data = str(value) + ' ' + str(0) + '\n'
-    # output_data += ' '.join(map(str, taken))
-    # return output_data
+    for idx in selected_items:
+        optimal_path[idx] = 1
+
+    output_data = str(optimal_value) + ' ' + str(0) + '\n'
+    output_data += ' '.join(map(str, optimal_path))
+
+    return output_data
 
 
 if __name__ == '__main__':
@@ -145,7 +194,9 @@ if __name__ == '__main__':
         file_location = sys.argv[1].strip()
         with open(file_location, 'r') as input_data_file:
             input_data = input_data_file.read()
-        print(solve_it(input_data))
+            solve_it(input_data)
+        # print(solve_it(input_data))
+
     else:
         print('This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/ks_4_0)')
 
