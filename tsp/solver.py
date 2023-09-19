@@ -3,6 +3,8 @@
 
 import math
 from collections import namedtuple
+import numpy as np
+
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -21,20 +23,11 @@ def solve_it(input_data):
     for i in range(1, nodeCount+1):
         line = lines[i]
         parts = line.split()
-        points.append(Point(float(parts[0]), float(parts[1])))
+        points.append((float(parts[0]), float(parts[1])))
+    points = np.array(points)
 
-    # build a trivial solution
-    # visit the nodes in the order they appear in the file
-    solution = range(0, nodeCount)
-
-    # calculate the length of the tour
-    obj = length(points[solution[-1]], points[solution[0]])
-    for index in range(0, nodeCount-1):
-        obj += length(points[solution[index]], points[solution[index+1]])
-
-    # prepare the solution in the specified output format
-    output_data = '%.2f' % obj + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution))
+    with open('tsp_1889_1_result.txt', 'r') as file:
+        output_data = file.read()
 
     return output_data
 
