@@ -1,6 +1,18 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+"""
+428.87
 
+20750.76
+
+29472.73
+
+37064.40
+
+319651.27
+
+67195717.98
+"""
 import math
 from collections import namedtuple
 import numpy as np
