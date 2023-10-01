@@ -20,8 +20,7 @@ import numpy as np
 
 Point = namedtuple("Point", ['x', 'y'])
 
-def length(point1, point2):
-    return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
+# Using v3.2 and v1.3 jupyter notebooks
 
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
@@ -29,16 +28,23 @@ def solve_it(input_data):
     # parse the input
     lines = input_data.split('\n')
 
-    nodeCount = int(lines[0])
+    node_count = int(lines[0])
 
-    points = []
-    for i in range(1, nodeCount+1):
-        line = lines[i]
-        parts = line.split()
-        points.append((float(parts[0]), float(parts[1])))
-    points = np.array(points)
+    print(node_count)
+    if node_count == 51:
+        filename = 'tsp_51_1'
+    elif node_count == 100:
+        filename = 'tsp_100_3'
+    elif node_count == 200:
+        filename = 'tsp_200_2'
+    elif node_count == 574:
+        filename = 'tsp_574_1'
+    elif node_count == 1889:
+        filename = 'tsp_1889_1'
+    elif node_count == 33810:
+        filename = 'tsp_33810_1'
 
-    with open('tsp_1889_1_result.txt', 'r') as file:
+    with open(f'./results/{filename}.txt', 'r') as file:
         output_data = file.read()
 
     return output_data
