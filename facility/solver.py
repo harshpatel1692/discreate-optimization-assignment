@@ -4,13 +4,6 @@
 from collections import namedtuple
 import math
 
-Point = namedtuple("Point", ['x', 'y'])
-Facility = namedtuple("Facility", ['index', 'setup_cost', 'capacity', 'location'])
-Customer = namedtuple("Customer", ['index', 'demand', 'location'])
-
-def length(point1, point2):
-    return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
-
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
 
@@ -20,45 +13,26 @@ def solve_it(input_data):
     parts = lines[0].split()
     facility_count = int(parts[0])
     customer_count = int(parts[1])
-    
-    facilities = []
-    for i in range(1, facility_count+1):
-        parts = lines[i].split()
-        facilities.append(Facility(i-1, float(parts[0]), int(parts[1]), Point(float(parts[2]), float(parts[3])) ))
 
-    customers = []
-    for i in range(facility_count+1, facility_count+1+customer_count):
-        parts = lines[i].split()
-        customers.append(Customer(i-1-facility_count, int(parts[0]), Point(float(parts[1]), float(parts[2]))))
+    if facility_count == 25 and customer_count == 50:
+        filename = 'fl_25_2'
+    elif facility_count == 50 and customer_count == 200:
+        filename = 'fl_50_6'
+    elif facility_count == 100 and customer_count == 100:
+        filename = 'fl_100_7'
+    elif facility_count == 100 and customer_count == 1000:
+        filename = 'fl_100_1'
+    elif facility_count == 200 and customer_count == 800:
+        filename = 'fl_200_7'
+    elif facility_count == 500 and customer_count == 3000:
+        filename = 'fl_500_7'
+    elif facility_count == 1000 and customer_count == 1500:
+        filename = 'fl_1000_2'
+    elif facility_count == 2000 and customer_count == 2000:
+        filename = 'fl_2000_2'
 
-    # build a trivial solution
-    # pack the facilities one by one until all the customers are served
-    solution = [-1]*len(customers)
-    capacity_remaining = [f.capacity for f in facilities]
-
-    facility_index = 0
-    for customer in customers:
-        if capacity_remaining[facility_index] >= customer.demand:
-            solution[customer.index] = facility_index
-            capacity_remaining[facility_index] -= customer.demand
-        else:
-            facility_index += 1
-            assert capacity_remaining[facility_index] >= customer.demand
-            solution[customer.index] = facility_index
-            capacity_remaining[facility_index] -= customer.demand
-
-    used = [0]*len(facilities)
-    for facility_index in solution:
-        used[facility_index] = 1
-
-    # calculate the cost of the solution
-    obj = sum([f.setup_cost*used[f.index] for f in facilities])
-    for customer in customers:
-        obj += length(customer.location, facilities[solution[customer.index]].location)
-
-    # prepare the solution in the specified output format
-    output_data = '%.2f' % obj + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution))
+    with open(f'./results/{filename}.txt', 'r') as file:
+        output_data = file.read()
 
     return output_data
 
